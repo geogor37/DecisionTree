@@ -9,27 +9,27 @@ class DecisionTree(private val rand: Random): SupervisedLearner(){
 	private lateinit var rootNode: Node
 
 	override fun train(features: Matrix, labels: Matrix) {
-		rootNode = generateTree(features, labels)
+		rootNode = generateTree(features.data, labels.data)
 	}
 
 	override fun predict(features: DoubleArray, labels: DoubleArray, target: DoubleArray, isTest: Boolean) {
-		TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+		labels[0] = rootNode.classify(features)
 	}
 
 	override fun testFinished() {
 	}
 
-	private fun generateTree(features: Matrix, labels: Matrix): Node {
-		val outputs = labels.data.map { it[0] }
+	private fun generateTree(features: List<DoubleArray>, labels: List<DoubleArray>): Node {
+		val outputs = labels.map { it[0] }
 		val uniqueOutputs = outputs.distinct()
 		val info = calculateInfo(outputs, uniqueOutputs)
 		var bestFeatureIndexSoFar = 0
 		var bestInfoGainSoFar = 0.0
 
-		for (colIndex in 0 until features.cols()) {
-			if (features.valueCount(colIndex) > 1) {
-				val featureValues = features.data.map { it[colIndex] }
-				val uniqueFeatureValues = featureValues.distinct()
+		for (colIndex in 0 until features[0].size) {
+			val featureValues = features.map { it[colIndex] }
+			val uniqueFeatureValues = featureValues.distinct()
+			if (uniqueFeatureValues.size > 1) {
 				var featureInfo = 0.0
 				for (value in uniqueFeatureValues) {
 					val valueCount = featureValues.count { it == value }
@@ -46,25 +46,27 @@ class DecisionTree(private val rand: Random): SupervisedLearner(){
 		}
 
 		val node = Node(bestFeatureIndexSoFar)
-		for (value in features.data.map { it[bestFeatureIndexSoFar] }.distinct()) {
-			val filteredLabels = labels.data.filterIndexed { index, _ -> features.get(index, bestFeatureIndexSoFar) == value }
-			val filteredFeatures = features.data.filter { it[bestFeatureIndexSoFar] == value }
-			val splitLabelMatrix = Matrix().apply { setData(filteredLabels) }
-			val splitFeatureMatrix = Matrix().apply { setData(filteredFeatures) }
-			if (splitLabelMatrix.valueCount(0) == 1) {
-				node.addLeafNode(value, splitLabelMatrix.get(0,0))
+		for (value in features.map { it[bestFeatureIndexSoFar] }.distinct()) {
+			val filteredLabels = labels.filterIndexed { index, _ -> features[index][bestFeatureIndexSoFar] == value }
+			val uniqueLabels = filteredLabels.map { it[0] }.distinct()
+			if (uniqueLabels.size == 1) {
+				node.addLeafNode(value, uniqueLabels[0])
 			} else {
-				node.addLowerLayerNode(value, generateTree(splitFeatureMatrix, splitLabelMatrix))
+				val filteredFeatures = features.filter { it[bestFeatureIndexSoFar] == value }
+				node.addLowerLayerNode(value, generateTree(filteredFeatures, filteredLabels))
 			}
 		}
+		return node
 	}
 
 	private fun calculateInfo(outputs: List<Double>, uniqueOutputs: List<Double>): Double {
 		var info = 0.0
 		for (output in uniqueOutputs) {
 			val outputCount = outputs.count { it == output }
-			val ratio = outputCount / outputs.size.toDouble()
-			info -= ratio * log(ratio, 2.0)
+			if (outputCount != 0) {
+				val ratio = outputCount / outputs.size.toDouble()
+				info -= ratio * log(ratio, 2.0)
+			}
 		}
 		return info
 	}

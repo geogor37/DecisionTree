@@ -23,7 +23,7 @@ class DecisionTree(private val rand: Random): SupervisedLearner(){
 		val outputs = labels.map { it[0] }
 		val uniqueOutputs = outputs.distinct()
 		val info = calculateInfo(outputs, uniqueOutputs)
-		var bestFeatureIndexSoFar = 0
+		var bestFeatureIndexSoFar = -1
 		var bestInfoGainSoFar = 0.0
 
 		for (colIndex in 0 until features[0].size) {
@@ -46,15 +46,21 @@ class DecisionTree(private val rand: Random): SupervisedLearner(){
 		}
 
 		val node = Node(bestFeatureIndexSoFar)
-		for (value in features.map { it[bestFeatureIndexSoFar] }.distinct()) {
-			val filteredLabels = labels.filterIndexed { index, _ -> features[index][bestFeatureIndexSoFar] == value }
-			val uniqueLabels = filteredLabels.map { it[0] }.distinct()
-			if (uniqueLabels.size == 1) {
-				node.addLeafNode(value, uniqueLabels[0])
-			} else {
-				val filteredFeatures = features.filter { it[bestFeatureIndexSoFar] == value }
-				node.addLowerLayerNode(value, generateTree(filteredFeatures, filteredLabels))
+		if (bestFeatureIndexSoFar >= 0) {
+			for (value in features.map { it[bestFeatureIndexSoFar] }.distinct()) {
+				val filteredLabelArrays = labels.filterIndexed { index, _ -> features[index][bestFeatureIndexSoFar] == value }
+				val filteredLabels = filteredLabelArrays.map { it[0] }
+				node.defaultOutput = filteredLabels.getMostCommonElement()
+				val uniqueLabels = filteredLabels.distinct()
+				if (uniqueLabels.size == 1) {
+					node.addLeafNode(value, uniqueLabels[0])
+				} else {
+					val filteredFeatures = features.filter { it[bestFeatureIndexSoFar] == value }
+					node.addLowerLayerNode(value, generateTree(filteredFeatures, filteredLabelArrays))
+				}
 			}
+		} else {
+			node.defaultOutput = labels.map { it[0] }.getMostCommonElement()
 		}
 		return node
 	}
@@ -70,4 +76,6 @@ class DecisionTree(private val rand: Random): SupervisedLearner(){
 		}
 		return info
 	}
+
+	private fun <T> Collection<T>.getMostCommonElement() = groupBy { it }.mapValues { it.value.size }.maxBy { it.value }?.key ?: throw Exception("This shouldn't happen")
 }

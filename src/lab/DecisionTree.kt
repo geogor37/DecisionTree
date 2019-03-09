@@ -7,9 +7,24 @@ import kotlin.math.log
 
 class DecisionTree(private val rand: Random): SupervisedLearner(){
 	private lateinit var rootNode: Node
+	private var treeDepth = 0
+	private var nodeCount = 0
 
 	override fun train(features: Matrix, labels: Matrix) {
-		rootNode = generateTree(features.data, labels.data)
+		treeDepth = 0
+		nodeCount = 0
+		rootNode = generateTree(1, features.data, labels.data)
+		println("Number of nodes: $nodeCount")
+		println("Max depth of the tree: $treeDepth")
+		var correctPredictions = 0
+		features.data.forEachIndexed { index, row ->
+			val predictionArray = DoubleArray(1)
+			predict(row, predictionArray, DoubleArray(0), false)
+			if (labels.data[index][0] == predictionArray[0]) {
+				correctPredictions++
+			}
+		}
+		println("Training set accuracy: ${correctPredictions/features.rows().toDouble()}")
 	}
 
 	override fun predict(features: DoubleArray, labels: DoubleArray, target: DoubleArray, isTest: Boolean) {
@@ -19,7 +34,10 @@ class DecisionTree(private val rand: Random): SupervisedLearner(){
 	override fun testFinished() {
 	}
 
-	private fun generateTree(features: List<DoubleArray>, labels: List<DoubleArray>): Node {
+	private fun generateTree(currentDepth: Int, features: List<DoubleArray>, labels: List<DoubleArray>): Node {
+		if (currentDepth > treeDepth) {
+			treeDepth = currentDepth
+		}
 		val outputs = labels.map { it[0] }
 		val uniqueOutputs = outputs.distinct()
 		val info = calculateInfo(outputs, uniqueOutputs)
@@ -46,6 +64,7 @@ class DecisionTree(private val rand: Random): SupervisedLearner(){
 		}
 
 		val node = Node(bestFeatureIndexSoFar)
+		nodeCount++
 		if (bestFeatureIndexSoFar >= 0) {
 			for (value in features.map { it[bestFeatureIndexSoFar] }.distinct()) {
 				val filteredLabelArrays = labels.filterIndexed { index, _ -> features[index][bestFeatureIndexSoFar] == value }
@@ -54,9 +73,13 @@ class DecisionTree(private val rand: Random): SupervisedLearner(){
 				val uniqueLabels = filteredLabels.distinct()
 				if (uniqueLabels.size == 1) {
 					node.addLeafNode(value, uniqueLabels[0])
+					nodeCount++
+					if (treeDepth == currentDepth) {
+						treeDepth += 1
+					}
 				} else {
 					val filteredFeatures = features.filter { it[bestFeatureIndexSoFar] == value }
-					node.addLowerLayerNode(value, generateTree(filteredFeatures, filteredLabelArrays))
+					node.addLowerLayerNode(value, generateTree(currentDepth + 1, filteredFeatures, filteredLabelArrays))
 				}
 			}
 		} else {
